@@ -1,2 +1,2 @@
-include ':app', ':awesome_library'
+include ':app', ':awesome_library', ':smartcode_lib_test'
 rootProject.name='Test_Module_Lib'
