@@ -10,6 +10,9 @@ import com.google.gson.JsonObject;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -17,7 +20,7 @@ import retrofit2.Response;
 
 public class SmartCodeLib {
     public static Context context;
-
+    public static String json;
     public static Model_Smartcode_Data model_smartcode_data;
     public static JSONObject object;
     public static JSONObject getSmartcode (Double latitude, Double longitude) {
@@ -108,5 +111,23 @@ public class SmartCodeLib {
     }
     public static int x(int a, int b){
         return a+b;
+    }
+
+    public static String saveJsonFileToLocal(Context context) {
+        try {
+            InputStream is = context.getAssets().open("country.json");
+            int size = is.available();
+            byte[] buffer = new byte[size];
+            is.read(buffer);
+            is.close();
+            json = new String(buffer, "UTF-8");
+
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return null;
+        }
+        Log.e("data_json_a", json);
+        return json;
     }
 }
