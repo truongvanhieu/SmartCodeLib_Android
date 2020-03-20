@@ -7,11 +7,20 @@ import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
 
 import okhttp3.ResponseBody;
 import retrofit2.Call;
@@ -19,16 +28,22 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class SmartCodeLib {
-    public static Context context;
-    public static String json;
-    public static Model_Smartcode_Data model_smartcode_data;
-    public static JSONObject object;
+    private static Context context;
+    private static String json, code;
+    private static int count;
+    private static Model_Smartcode_Data model_smartcode_data;
+    private static List<Model_vmapCode_Json> model_vmapCode_jsons = new ArrayList<>();
+    private static List<Model_Geometry_tb> model_geometry_tbs = new ArrayList<>();
+    private static JSONObject object, jsonObject;
+    private static JSONArray jsonArray, data;
+    private static SQLite db;
+    //get smartcodes
     public static JSONObject getSmartcode (Double latitude, Double longitude) {
 
         String latlng = latitude+","+longitude;
         String versionAPI = "v1.0";
         API_Smartcode_Interface service = API_Smartcode.getClient2().create(API_Smartcode_Interface.class);
-        retrofit2.Call<Model_Smartcode_Data> userCall = service.getSmartcodeData(versionAPI, latlng);
+        Call<Model_Smartcode_Data> userCall = service.getSmartcodeData(versionAPI, latlng);
         userCall.enqueue(new Callback<Model_Smartcode_Data>() {
             @Override
             public void onResponse(Call<Model_Smartcode_Data> call, Response<Model_Smartcode_Data> response) {
@@ -109,25 +124,208 @@ public class SmartCodeLib {
         });
         return object;
     }
-    public static int x(int a, int b){
-        return a+b;
-    }
-
-    public static String saveJsonFileToLocal(Context context) {
+    //vmapCode Table
+    private static JSONArray parseJsonArrayWithVmapcode(Context context) {
+        InputStream is = context.getResources().openRawResource(R.raw.vmapcodejs);
+        Writer writer = new StringWriter();
+        char[] buffer = new char[1024];
         try {
-            InputStream is = context.getAssets().open("country.json");
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            json = new String(buffer, "UTF-8");
-
-
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return null;
+            Reader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            int n;
+            while ((n = reader.read(buffer)) != -1) {
+                writer.write(buffer, 0, n);
+            }
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        Log.e("data_json_a", json);
-        return json;
+
+        json = writer.toString();
+        try {
+            jsonArray = new JSONArray(json);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        Log.e("jsonArr", jsonArray.toString());
+
+        return jsonArray;
     }
+    public static void saveJsonToVmapCodeTB(Context context){
+        try {
+            JSONArray jsonArray = parseJsonArrayWithVmapcode(context);
+            for (int i = 0 ; i<=jsonArray.length(); i++){
+                JSONObject jb = jsonArray.getJSONObject(i);
+                String id = jb.getString("id");
+                String address = jb.getString("address");
+                String code = jb.getString("code");
+                String doiTuongGanMa = jb.getString("doiTuongGanMa");
+                String isDeleted = jb.getString("isDeleted");
+                Double latitude = jb.getDouble("latitude");
+                Double longitude = jb.getDouble("longitude");
+                String maBuuChinh = jb.getString("maBuuChinh");
+                String maHuyen = jb.getString("maHuyen");
+                String maTinh = jb.getString("maTinh");
+                String tenHuyen = jb.getString("tenHuyen");
+                String tenTinh = jb.getString("tenTinh");
+                //Log.e("code", code+"");
+                model_vmapCode_jsons.add(new Model_vmapCode_Json(id, address, code, doiTuongGanMa, isDeleted, latitude, longitude, maBuuChinh, maHuyen, maTinh, tenHuyen, tenTinh));
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        db = SQLite.getInstance(context);
+        if (db.getCountTotalListVmapCodeTB()==0) {
+            Log.e("total", model_vmapCode_jsons.size()+"");
+            if (model_vmapCode_jsons != null) {
+                db = SQLite.getInstance(context);
+                for (int i = model_vmapCode_jsons.size() - 1; i >= 0; --i) {
+                    db.insertDataToVmapTable(new Model_vmapCode_Json(
+                            model_vmapCode_jsons.get(i).getId(),
+                            model_vmapCode_jsons.get(i).getAddress(),
+                            model_vmapCode_jsons.get(i).getCode(),
+                            model_vmapCode_jsons.get(i).getDoiTuongGanMa(),
+                            model_vmapCode_jsons.get(i).getDeleted(),
+                            model_vmapCode_jsons.get(i).getLatitude(),
+                            model_vmapCode_jsons.get(i).getLongitude(),
+                            model_vmapCode_jsons.get(i).getMaBuuChinh(),
+                            model_vmapCode_jsons.get(i).getMaHuyen(),
+                            model_vmapCode_jsons.get(i).getMaTinh(),
+                            model_vmapCode_jsons.get(i).getTenHuyen(),
+                            model_vmapCode_jsons.get(i).getTenTinh()));
+                    //Log.e("model_vmapCode_jsons", model_vmapCode_jsons.get(i).getCode() + "");
+                }
+            }
+        }else{
+            Log.e("SQLite:", "Data exist!");
+        }
+        //Log.e("list_VmapCODE:", db.getCountTotalListVmapCodeTB()+"");
+    }
+    public static int countAllDataFromVmapCodeTable(Context context){
+
+        db = SQLite.getInstance(context);
+        if (db.getCountTotalListVmapCodeTB()!=0){
+            count =  db.getCountTotalListVmapCodeTB();
+        }
+        return count;
+    }
+    public static JSONArray getJsonArrayFromVmapCodeTable(Context context) {
+        try {
+            db = SQLite.getInstance(context);
+            jsonObject = new JSONObject();
+            jsonArray = new JSONArray();
+            model_vmapCode_jsons = new ArrayList<>();
+            if (db.getCountTotalListVmapCodeTB() != 0) {
+                //Log.d("dữ liệu", db.getCountTotalListVmapCodeTB() + "");
+                jsonArray = db.getALLDataFromVmapCodeTable();
+                Log.e("Dữ liệu", ""+jsonArray.toString());
+            } else {
+                Log.e("Du lieu", "nulll");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return jsonArray;
+    }
+    private static Boolean checkData(Context context){
+        boolean count = false;
+        db = SQLite.getInstance(context);
+        if (db.getCountTotalListVmapCodeTB()!=0){
+            count = true;
+        }
+        return count;
+    }
+
+    //geomettry table
+    private static JSONArray parseJsonArrayWithGeometry(Context context) {
+        InputStream is = context.getResources().openRawResource(R.raw.geometry_min);
+        Writer writer = new StringWriter();
+        char[] buffer = new char[1024];
+        try {
+            Reader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+            int n;
+            while ((n = reader.read(buffer)) != -1) {
+                writer.write(buffer, 0, n);
+            }
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        json = writer.toString();
+        try {
+            jsonArray = new JSONArray(json);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        //Log.e("jsonArr", jsonArray.toString());
+
+        return jsonArray;
+    }
+    public static void saveJsonToGeometryTB(Context context){
+        try {
+            model_geometry_tbs = new ArrayList<>();
+            JSONArray jsonArray = parseJsonArrayWithGeometry(context);
+            for (int i = 0 ; i<=jsonArray.length(); i++){
+                JSONObject jb = jsonArray.getJSONObject(i);
+                String id = jb.getString("_id");
+                String code = jb.getString("code");
+                Boolean isDeleted = jb.getBoolean("isDeleted");
+                JSONObject geometry = jb.getJSONObject("geometry");
+                String type = geometry.getString("type");
+                JSONArray coordinates = geometry.getJSONArray("coordinates");
+                Log.e("code", code+"");
+                model_geometry_tbs.add(new Model_Geometry_tb(id, code, type, coordinates.toString(), isDeleted));
+                //Log.e("arr", array.toString()+"");
+            }
+
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        db = SQLite.getInstance(context);
+        if (db.getCountTotalLisGeometryTB()==0) {
+            Log.e("total", model_geometry_tbs.size()+"");
+            if (model_geometry_tbs != null) {
+                db = SQLite.getInstance(context);
+                for (int i = model_geometry_tbs.size() - 1; i >= 0; --i) {
+                    db.insertDataToGeometryTB(new Model_Geometry_tb(
+                            model_geometry_tbs.get(i).getId(),
+                            model_geometry_tbs.get(i).getCode(),
+                            model_geometry_tbs.get(i).getType(),
+                            model_geometry_tbs.get(i).getCoordinates(),
+                            model_geometry_tbs.get(i).getDeleted()));
+                }
+            }
+        }else{
+            Log.e("SQLite:", "Data exist!");
+        }
+    }
+    public static int countAllDataFromGeometryTable(Context context){
+        db = SQLite.getInstance(context);
+        if (db.getCountTotalLisGeometryTB()!=0){
+            count =  db.getCountTotalLisGeometryTB();
+        }
+        return count;
+    }
+    public static JSONArray getJsonArrayFromGeometryTable(Context context) {
+        try {
+            db = SQLite.getInstance(context);
+            jsonObject = new JSONObject();
+            jsonArray = new JSONArray();
+            model_geometry_tbs = new ArrayList<>();
+            if (db.getCountTotalLisGeometryTB() != 0) {
+                //Log.d("dữ liệu", db.getCountTotalListVmapCodeTB() + "");
+                jsonArray = db.getALLDataFromGeometryTable();
+                Log.e("Dữ liệu bảng geometry", ""+jsonArray.toString());
+            } else {
+                Log.e("Dữ liệu bảng geometry", "nulll");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return jsonArray;
+    }
+
+
 }
